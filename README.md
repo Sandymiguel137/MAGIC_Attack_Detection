@@ -16,8 +16,8 @@ This repository contains a comprehensive pipeline for simulating and detecting c
 ### Create Environment
 
 ```bash
-conda create -n cyberphys python=3.11
-conda activate cyberphys
+conda create -n newenv python=3.11
+conda activate newenv
 ```
 
 ### Install Dependencies
@@ -199,9 +199,9 @@ sensor_location_indices = [Y_NodeOrder.index(s) for s in metadata["sensor_nodes"
 
 | Metric             | Score   |
 | ------------------ | ------- |
-| ROC-AUC (Physical) | \~0.993 |
-| ROC-AUC (FDI)      | \~0.956 |
-| Combined ROC-AUC   | \~0.970 |
+| ROC-AUC (Physical) | \~0.966 |
+| ROC-AUC (FDI)      | \~0.847 |
+| Combined ROC-AUC   | \~0.908 |
 
 
 ### ROC Curve Visualizations
