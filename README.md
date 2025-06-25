@@ -109,7 +109,6 @@ Use the `.npy` files as input to train GNNs for attack detection.
 
 ---
 # FDIPhyDet_Final.ipynb
-# Joint Detection of Physical & FDI Attacks in Power Distribution Systems
 
 ## Overview
 
