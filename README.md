@@ -207,9 +207,9 @@ sensor_location_indices = [Y_NodeOrder.index(s) for s in metadata["sensor_nodes"
 ### ROC Curve Visualizations
 
 <p align="center">
-  <img src="Figures/image (16).png" alt="Combined ROC" width="30%" />
-  <img src="Figures/image (14).png" alt="Physical ROC" width="30%" />
-  <img src="Figures/image (15).png" alt="FDI ROC" width="30%" />
+  <img src="Figures/Physical_and_FDI.png" alt="Combined ROC" width="30%" />
+  <img src="Figures/Physical.png" alt="Physical ROC" width="30%" />
+  <img src="Figures/FDI.png" alt="FDI ROC" width="30%" />
 </p>
 
 ---
