@@ -28,7 +28,6 @@ The end result is a time-series dataset of complex voltage phasors labeled with 
 
 ### 2. False Data Injection (FDI) Attacks
 - Sophisticated stealthy corruption of voltage measurements from mu-PMU sensors.
-- Noise is added to sensor data.
 - FDI is injected in a way that mimics realistic attacker knowledge, bypassing traditional bad-data detectors.
 - MMSE-based estimation is then used to reconstruct the system's true voltage state from corrupted measurements.
 
@@ -66,6 +65,11 @@ To ensure observability and data fidelity:
 - A seed set of 30 known PV-connected sensor locations are pre-selected.
 - The remaining 90 sensors are strategically placed across the network for maximum coverage and robustness to stealthy FDI.
 
+## Measurements.py
+-Simulates realistic sensor measurements by injecting noise into OpenDSS voltage outputs.
+-Computes node-level currents using the Y-bus matrix and voltage phasors.
+-Generates noisy voltage, current, and power readings for mu-PMUs and power meters as inputs for attack detection and state estimation.
+
 ## Requirements
 
 ```bash
@@ -82,19 +86,6 @@ The following artifacts are saved:
 - `Vphasor_<attack_mode>.npy`: complex voltage phasors (after MMSE estimation)
 - `AttackLabel_<attack_mode>.npy`: labels indicating attack presence
 - `metadata_run_config.npy`: run configuration metadata
-
-## Example Usage
-
-```python
-from data_loader import data_loader_FDIPhy
-
-data = data_loader_FDIPhy(
-    'Vphasor_FDI_Physical_WithVoltageNoise.npy',
-    'AttackLabel_FDI_Physical_WithVoltageNoise.npy'
-)
-X = data.data_recover   # shape: (time, nodes, samples)
-Y = data.label_truth    # shape: (time, labels)
-```
 
 
 # FDIPhyDet_Final.ipynb
