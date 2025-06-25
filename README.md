@@ -14,7 +14,7 @@ The end result is a time-series dataset of complex voltage phasors labeled with 
 
 ## Objectives
 
-- Simulate physical control manipulation at PV inverters (e.g., tampering with Volt-Var/Volt-Watt curves).
+- Simulate physical control manipulation at PV inverters (tampering with Volt-Var/Volt-Watt curves).
 - Inject stealthy FDI attacks on PMU voltage measurements to evade traditional bad-data detection.
 - Generate labeled voltage phasors at all nodes over time.
 - Store data in NumPy-compatible format for downstream use in GNN/GCN training.
@@ -66,9 +66,10 @@ To ensure observability and data fidelity:
 - The remaining 90 sensors are strategically placed across the network for maximum coverage and robustness to stealthy FDI.
 
 ## Measurements.py
--Simulates realistic sensor measurements by injecting noise into OpenDSS voltage outputs.
--Computes node-level currents using the Y-bus matrix and voltage phasors.
--Generates noisy voltage, current, and power readings for mu-PMUs and power meters as inputs for attack detection and state estimation.
+
+- Simulates realistic sensor measurements by injecting noise into OpenDSS voltage outputs.
+- Computes node-level currents using the Y-bus matrix and voltage phasors.
+- Generates noisy voltage, current, and power readings for mu-PMUs and power meters (currently none) as inputs for attack detection and state estimation.
 
 ## Requirements
 
@@ -79,15 +80,26 @@ pip install torch==2.0.1 torchvision torchaudio --index-url https://download.pyt
 pip install cplxmodule numpy==1.24.4 scikit-learn pyarrow
 ```
 
-## Outputs
+## data_loader.py
 
-The following artifacts are saved:
+- Loads voltage phasor data and physical attack labels from .npy or .mat files into memory for processing and training.
+- Simulates noisy sensor readings using OpenDSS voltages and currents via the measurements() function.
+- Injects stealthy False Data Injection (FDI) attacks on a random subset of sensors by manipulating noisy measurements using null-space projections of the admittance matrix.
+- Performs MMSE state estimation to reconstruct the full voltage profile of the grid using both noisy and attacked sensor data.
+- Generates time-aligned input-output pairs for GCN training by providing voltage states (data_recover) and combined attack labels (label_truth).
+- Provides flexible data access through next_state() for sampling features and labels at arbitrary timesteps.
+- Includes rollout storage for PyTorch training, enabling mini-batch generation and sequential data insertion with complex-valued support.
 
-- `Vphasor_<attack_mode>.npy`: complex voltage phasors (after MMSE estimation)
-- `AttackLabel_<attack_mode>.npy`: labels indicating attack presence
-- `metadata_run_config.npy`: run configuration metadata
-
-
+## graph_loader.py
+- Parses node and edge CSV files to build mappings and construct graph structures for buses and their connections.
+- Encodes complex edge weights using a custom IdentityEncoder for use in graph neural network training.
+- Converts sparse Y-bus matrices (from OpenDSS) into batched edge lists and labels for physical system graphs.
+- Implements graph batching logic via single2batch_int() to duplicate and offset graphs across time or instances.
+- Supports time-evolving graph construction using tempo2graph(), which builds temporal edges across snapshots.
+- Generates spatial-temporal graph datasets by combining structural and temporal edges in single2batch_GT().
+- Handles edge and label conversion into PyTorch tensors for compatibility with geometric deep learning frameworks.
+- Provides modular graph construction utilities for integrating power grid topology into GCN-based models.
+  
 # FDIPhyDet_Final.ipynb
 Joint Detection of Physical and FDI Attacks in Distribution Networks
 
@@ -154,16 +166,6 @@ This notebook implements a joint detection framework using Graph Convolutional N
   - `ROC Curve for Physical Attacks`
   - `ROC Curve for FDI Attacks`
 
-## Example Usage
-
-```python
-from data_loader import data_loader_FDIPhy
-
-data = data_loader_FDIPhy(
-    'Vphasor_FDI_Physical_WithVoltageNoise.npy',
-    'AttackLabel_FDI_Physical_WithVoltageNoise.npy'
-)
-```
 
 ## Metadata Usage
 
@@ -224,3 +226,14 @@ metadata = {
 </p>
 
 ---
+#### 1. Combined Detection Performance
+
+The first ROC curve shows the model's performance in detecting both physical and FDI attacks across all 150 monitored locations (30 PV inverters + 120 sensors). The **AUC is 0.8918**, indicating strong overall detection capability.
+
+#### 2. FDI Attack Detection
+
+The second ROC curve isolates performance on the **120 FDI-targeted mu-PMU sensors**. The model achieves an **AUC of 0.8098**, reflecting solid performance in identifying stealthy, measurement-level attacks.
+
+#### 3. Physical Attack Detection
+
+The third ROC curve evaluates detection on the **30 PV inverters** undergoing Volt-Var/Volt-Watt curve manipulation. The model performs exceptionally well here, with an **AUC of 0.9865**, indicating near-perfect recognition of compromised DERs.
