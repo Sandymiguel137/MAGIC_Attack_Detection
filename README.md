@@ -1,3 +1,5 @@
+![Cover](Figures/cover.png)
+
 # MAGIC_Attack_Detection
 
 # AttackGenerationViaSMARTDS.ipynb
