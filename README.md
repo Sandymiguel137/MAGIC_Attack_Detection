@@ -98,88 +98,121 @@ Y = data.label_truth    # shape: (time, labels)
 
 
 # FDIPhyDet_Final.ipynb
+Joint Detection of Physical and FDI Attacks in Distribution Networks
 
 ## Overview
 
-This repository implements a deep learning pipeline for the joint detection of:
+This notebook implements a joint detection framework using Graph Convolutional Networks (GCNs) to identify both physical attacks on PV inverters and stealthy False Data Injection (FDI) attacks on measurement sensors in unbalanced 3-phase distribution networks. The framework builds on OpenDSS simulation outputs and leverages realistic time-series data generated from SMART-DS-based networks.
 
-- **Physical attacks** at PV inverters (voltage control curve manipulation)
-- **False Data Injection (FDI) attacks** on measurement sensors (e.g., mu-PMUs)
+## Workflow
 
-It integrates:
+### 1. Import Network
+- Import a selected feeder from OpenDSS (.dss format) with 3-phase unbalanced topology and PV inverter models.
 
-- Time-series simulation of unbalanced 3-phase distribution systems (via OpenDSS)
-- Complex-valued GCN (Graph Convolutional Network) for spatiotemporal attack detection
-- ROC-AUC metrics for model evaluation
+### 2. Input Data
+- Use `Vphasor_FDI_Physical_WithVoltageNoise.npy` for MMSE-estimated voltage phasors with both attack types.
+- Use `AttackLabel_FDI_Physical_WithVoltageNoise.npy` for binary ground-truth labels:
+  - First 30 entries: physical attack labels (one per PV inverter)
+  - Next 120 entries: FDI attack labels (one per mu-PMU sensor)
 
----
+### 3. Y Matrix and Sensor Topology
+- Extract complex admittance (Y) matrix.
+- Normalize and sparsify it to derive the Graph Shift Operator (GSO).
+- Use metadata to identify optimal sensor placements from the original simulation run.
 
-## Features
+### 4. GCN Architecture
+- A hybrid complex-valued temporal-spatial model with:
+  - 1D complex convolutions across time
+  - Chebyshev polynomial-based graph convolutions across spatial structure
+  - Fully connected layers with complex-to-real projection for binary classification
 
-- Uses **OpenDSS** to simulate voltage behavior of PV-rich feeders
-- Greedy optimization for **sensor placement**
-- **Synthetic attack injection** for physical and FDI scenarios
-- Dataset construction for **GCN training and testing**
-- Accurate **binary classification** of attack locations over time
+### 5. Training
+- Binary Cross Entropy loss with weighted regularization:
+  - Higher penalty on physical attack errors (λ_physical > λ_FDI)
+- Training disabled by default (`FlagTrain = 0`); toggle to re-train the model.
 
----
+### 6. Testing
+- Loads a pre-trained model (`FDIPhyAtkDet_156_New.pth`)
+- Performs classification and computes:
+  - Binary accuracy per timestep
+  - ROC AUC scores for:
+    - Physical attack detection
+    - FDI attack detection
 
-## Workflow Summary
+### 7. Evaluation Metrics
+- Accuracy (timestep-level and average)
+- ROC Curve for:
+  - Combined attack detection
+  - Physical-only detection
+  - FDI-only detection
 
-1. **Import 3-phase unbalanced distribution network** from OpenDSS (.dss format)
-2. **Place sensors optimally** using greedy observability maximization
-3. **Run time-series simulations** for 35,040 timepoints (1 year of 15-min data)
-4. **Inject physical attacks** by modifying PV control parameters (VV/VW)
-5. **Inject FDI attacks** on voltage measurements (with optional voltage noise)
-6. **Create labeled dataset** (voltage phasors, attack labels)
-7. **Train/test GCN** to classify physical and FDI attacks
-8. **Evaluate via ROC curves and accuracy**
+## Model Details
 
----
-
-## File Structure
-
+```text
+- Input: Voltage phasors (complex-valued), shape: [time, nodes, window]
+- Output: Binary labels (physical & FDI), shape: [time, 150]
+- Architecture:
+    CplxConv1d → ReLU → ChebGraphConv → CplxLinear → Sigmoid
 ```
-├── scenarios/                    # OpenDSS networks and timeseries
-├── *.npy                         # Saved numpy files: voltages, labels, metadata
-├── *.pth                         # Trained PyTorch models
-├── *.py                          # Core scripts: training, testing, plotting
-├── metadata_run_config.npy       # Metadata for indexing, sensor info, nodes
+
+## Outputs
+
+- Trained GCN weights: `FDIPhyAtkDet_156_New.pth`
+- ROC plots:
+  - `ROC Curve for both Physical & FDI Attacks`
+  - `ROC Curve for Physical Attacks`
+  - `ROC Curve for FDI Attacks`
+
+## Example Usage
+
+```python
+from data_loader import data_loader_FDIPhy
+
+data = data_loader_FDIPhy(
+    'Vphasor_FDI_Physical_WithVoltageNoise.npy',
+    'AttackLabel_FDI_Physical_WithVoltageNoise.npy'
+)
 ```
 
----
+## Metadata Usage
 
-## Metadata Implementation
+A critical component of this pipeline is the use of `metadata_run_config.npy`, which ensures consistency, reproducibility, and correct graph construction throughout both simulation and learning phases.
 
-The file `metadata_run_config.npy` stores a dictionary for all necessary experiment info:
+### Metadata Contents
 
-### Contents
+The metadata dictionary contains:
 
 ```python
 metadata = {
-  'total_timepoints': 35040,
-  'sampling_rate': 20,
-  'pv_feeders': [...],         # List of PV node names
-  'sensor_nodes': [...],       # List of mu-PMU sensor node names
-  'Y_node_order': [...],       # Canonical node ordering used in Ybus
+    "total_timepoints": total_timepoints,           # e.g., 35040
+    "sampling_rate": sampling_rate,                 # e.g., 20 per timepoint
+    "pv_feeders": pv_feeder,                        # List of PV inverter node names
+    "sensor_nodes": all_optimal_sensors,            # 120 mu-PMU sensor locations
+    "Y_node_order": Y_NodeOrder                     # Ordered list of node names from OpenDSS
 }
 ```
 
-### Usage
+### How Metadata Is Used
 
-This file is loaded in both the training and testing phases to ensure consistent:
+1. **Sensor Indexing**
+   - Convert node names of mu-PMUs to index positions using:
+     ```python
+     sensor_location_indices = [Y_NodeOrder.index(s) for s in sensor_nodes]
+     ```
+   - These indices are used for:
+     - Injecting FDI attacks on targeted nodes.
+     - Extracting voltage phasors from correct locations.
+     - Ensuring correct spatial alignment during graph construction.
 
-- Mapping between node indices and names
-- Sensor attack indexing
-- Y-bus matrix ordering
+2. **Graph Shift Operator (GSO) Construction**
+   - The normalized admittance matrix (`Y_norm_sparse`) is ordered according to `Y_NodeOrder`.
+   - This enables accurate Chebyshev graph convolution with physical network topology.
 
-```python
-metadata = np.load("metadata_run_config.npy", allow_pickle=True).item()
-Y_NodeOrder = metadata["Y_node_order"]
-sensor_location_indices = [Y_NodeOrder.index(s) for s in metadata["sensor_nodes"]]
-```
+3. **Reproducibility**
+   - By storing metadata:
+     - The simulation can be reproduced without re-running OpenDSS.
+     - Any downstream model (GCN, estimator, detector) can be retrained or evaluated consistently.
 
----
 
 
 ## Results Summary
