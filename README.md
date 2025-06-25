@@ -4,7 +4,7 @@
 
 # AttackGenerationViaSMARTDS.ipynb
 
-This repository contains a comprehensive pipeline for simulating and detecting cyber-physical attacks in realistic three-phase unbalanced power distribution networks using:
+This notebook contains a comprehensive pipeline for simulating and detecting cyber-physical attacks in realistic three-phase unbalanced power distribution networks using:
 
 -  [SMART-DS Dataset](https://www.nrel.gov/grid/smart-ds.html) — realistic 3-year load profiles and feeder topologies
 -  [OpenDSS](https://sourceforge.net/projects/electricdss/) — high-fidelity power flow engine
