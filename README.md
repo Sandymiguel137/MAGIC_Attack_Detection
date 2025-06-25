@@ -65,7 +65,7 @@ To ensure observability and data fidelity:
 - A seed set of 30 known PV-connected sensor locations are pre-selected.
 - The remaining 90 sensors are strategically placed across the network for maximum coverage and robustness to stealthy FDI.
 
-## Measurements.py
+## measurements.py
 
 - Simulates realistic sensor measurements by injecting noise into OpenDSS voltage outputs.
 - Computes node-level currents using the Y-bus matrix and voltage phasors.
@@ -80,26 +80,45 @@ pip install torch==2.0.1 torchvision torchaudio --index-url https://download.pyt
 pip install cplxmodule numpy==1.24.4 scikit-learn pyarrow
 ```
 
-## data_loader.py
+## Data Loader Modules
 
-- Loads voltage phasor data and physical attack labels from .npy or .mat files into memory for processing and training.
-- Simulates noisy sensor readings using OpenDSS voltages and currents via the measurements() function.
-- Injects stealthy False Data Injection (FDI) attacks on a random subset of sensors by manipulating noisy measurements using null-space projections of the admittance matrix.
-- Performs MMSE state estimation to reconstruct the full voltage profile of the grid using both noisy and attacked sensor data.
-- Generates time-aligned input-output pairs for GCN training by providing voltage states (data_recover) and combined attack labels (label_truth).
-- Provides flexible data access through next_state() for sampling features and labels at arbitrary timesteps.
-- Includes rollout storage for PyTorch training, enabling mini-batch generation and sequential data insertion with complex-valued support.
+### data\_loader.py
 
-## graph_loader.py
-- Parses node and edge CSV files to build mappings and construct graph structures for buses and their connections.
-- Encodes complex edge weights using a custom IdentityEncoder for use in graph neural network training.
-- Converts sparse Y-bus matrices (from OpenDSS) into batched edge lists and labels for physical system graphs.
-- Implements graph batching logic via single2batch_int() to duplicate and offset graphs across time or instances.
-- Supports time-evolving graph construction using tempo2graph(), which builds temporal edges across snapshots.
-- Generates spatial-temporal graph datasets by combining structural and temporal edges in single2batch_GT().
-- Handles edge and label conversion into PyTorch tensors for compatibility with geometric deep learning frameworks.
-- Provides modular graph construction utilities for integrating power grid topology into GCN-based models.
-  
+- Loads voltage phasor data and physical attack labels from `.npy` or `.mat` files.
+- Simulates noisy measurements and stealthy FDI attacks on sensor readings.
+- Uses MMSE-based estimation to reconstruct the voltage profile of the network.
+- Outputs time-aligned voltage and label arrays for GCN model training.
+- Supports batch generation and storage of complex-valued inputs for PyTorch training.
+
+### graph\_loader.py
+
+- Parses node and edge CSV files to construct graph representations of the power network.
+- Converts OpenDSS Y-bus matrices into graph edge lists with complex weights.
+- Supports batched and temporal graph construction for time-series GNNs.
+- Encodes edge attributes using a custom `IdentityEncoder` for compatibility with PyTorch geometric models.
+
+## Metadata
+
+- A metadata dictionary is saved (`metadata_run_config.npy`) to preserve simulation configurations, such as:
+  - Total timepoints
+  - Sampling rate
+  - List of PV feeders
+  - List of mu-PMU sensor nodes
+  - Global bus ordering
+
+## Data Generation Pipeline
+
+1. **System Initialization**: Selects a feeder from the SMART-DS dataset, parses its topology and loads into OpenDSS.
+2. **Admittance Matrix Processing**: Extracts and normalizes the Y-bus admittance matrix for the selected network.
+3. **PV Inverter Modeling**: Initializes 30 PV inverters with realistic Volt-Var and Volt-Watt control curves and power profiles.
+4. **Sensor Placement**: Applies a greedy optimization algorithm to select 120 sensor locations using SVD of the Y-matrix.
+5. **Physical Attack Simulation**: Modifies control curves for a random subset of PV inverters to simulate tampering.
+6. **Time-Series Generation**: Iteratively simulates the power flow for each timepoint and subsample using updated PV injections.
+7. **Voltage Measurement Collection**: Extracts real and imaginary components of nodal voltage phasors from OpenDSS.
+8. **False Data Injection**: Adds Gaussian noise then FDI attack to sensor outputs, simulating stealthy adversarial behavior.
+9. **State Estimation**: Uses MMSE to reconstruct full voltage states from noisy and attacked sensor data.
+10. **Dataset Output**: Saves voltage phasors and binary attack labels as `.npy` files, along with metadata.
+
 # FDIPhyDet_Final.ipynb
 Joint Detection of Physical and FDI Attacks in Distribution Networks
 
