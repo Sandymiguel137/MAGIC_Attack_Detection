@@ -193,14 +193,6 @@ sensor_location_indices = [Y_NodeOrder.index(s) for s in metadata["sensor_nodes"
 
 ---
 
-## How to Run
-
-1. Place your OpenDSS `.dss` network in the correct folder (e.g., `scenarios/`)
-2. Configure `Master_dss` path to point to the network head file
-3. Set `FlagTrain = 1` to enable training or `FlagFDI = 1` for injecting FDI
-4. Run the main script for full end-to-end pipeline
-
----
 
 ## Results Summary
 
