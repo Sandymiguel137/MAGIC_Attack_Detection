@@ -1,115 +1,102 @@
 ![Cover](Figures/cover.png)
 
-# MAGIC_Attack_Detection
-
 # AttackGenerationViaSMARTDS.ipynb
+Generation of Labeled Voltage Phasors under Physical and FDI Attacks Using SMART-DS and OpenDSS
 
-This notebook contains a comprehensive pipeline for generating and comprehensive dataset in a realistic three-phase unbalanced power distribution networks using:
+## Overview
 
--  [SMART-DS Dataset](https://www.nrel.gov/grid/smart-ds.html) — realistic 3-year load profiles and feeder topologies
--  [OpenDSS](https://sourceforge.net/projects/electricdss/) — high-fidelity power flow engine
+This notebook provides a comprehensive workflow to generate a high-fidelity dataset of voltage phasors in three-phase unbalanced distribution networks under both physical and stealthy False Data Injection (FDI) attacks. The data generation leverages:
 
----
+- **[SMART-DS](https://data.openei.org/submissions/2790)**: a large-scale, realistic dataset of U.S. distribution networks with three-year historical load and solar data across multiple voltage levels.
+- **[OpenDSS](https://sourceforge.net/projects/electricdss/)**: an industry-grade, open-source simulation tool for power flow analysis in distribution systems.
 
-## Setup
+The end result is a time-series dataset of complex voltage phasors labeled with attack types, suitable for use in machine learning tasks such as anomaly detection, graph signal processing, and distribution network state estimation under adversarial conditions.
 
-### Create Environment
+## Objectives
 
-```bash
-conda create -n newenv python=3.11
-conda activate newenv
+- Simulate physical control manipulation at PV inverters (e.g., tampering with Volt-Var/Volt-Watt curves).
+- Inject stealthy FDI attacks on PMU voltage measurements to evade traditional bad-data detection.
+- Generate labeled voltage phasors at all nodes over time.
+- Store data in NumPy-compatible format for downstream use in GNN/GCN training.
+
+## Attack Types Considered
+
+### 1. Physical Attacks
+- Direct manipulation of distributed energy resources (DERs), specifically by altering the Volt-Var and Volt-Watt control curves of PV inverters.
+- Attack randomly targets phase-2 connected PV inverters during each timestep.
+- Labeled attack vectors indicate which PV nodes are compromised.
+
+### 2. False Data Injection (FDI) Attacks
+- Sophisticated stealthy corruption of voltage measurements from mu-PMU sensors.
+- Noise is added to sensor data.
+- FDI is injected in a way that mimics realistic attacker knowledge, bypassing traditional bad-data detectors.
+- MMSE-based estimation is then used to reconstruct the system's true voltage state from corrupted measurements.
+
+## SMART-DS Dataset Structure
+
+SMART-DS includes 3-year (2016–2018) time-series data at multiple voltage levels:
+
+- **230 kV** – Sub-transmission level  
+- **69 kV** – Substation level  
+- **4–25 kV** – Feeder levels
+
+```
+SMART-DS/
+├── GIS/
+├── PLACEMENTS/
+└── YEARS/
+    └── <YEAR>/
+        └── <DATASETS>/
+            ├── full_dataset_analysis/
+            └── <SUB-REGIONS>/
+                ├── load_data/
+                ├── solar_data/
+                ├── cyme_profiles/
+                └── scenarios/
+                    └── opendss/
+                        └── <SUBSTATIONS>/
+                            └── <FEEDERS>/
 ```
 
-### Install Dependencies
+## Sensor Placement Strategy
+
+To ensure observability and data fidelity:
+- The top-`k` singular vectors from the normalized admittance matrix (`Y`) are used.
+- A greedy algorithm optimally places 120 mu-PMU sensors based on maximizing the smallest singular value of the sensor matrix.
+- A seed set of 30 known PV-connected sensor locations are pre-selected.
+- The remaining 90 sensors are strategically placed across the network for maximum coverage and robustness to stealthy FDI.
+
+## Requirements
 
 ```bash
+# Python 3.11 environment setup
 pip install .
 pip install torch==2.0.1 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
-pip install cplxmodule numpy==1.24.4 scikit-learn pyarrow matplotlib opendssdirect
+pip install cplxmodule numpy==1.24.4 scikit-learn pyarrow
 ```
 
----
+## Outputs
 
-## Functionality
+The following artifacts are saved:
 
-### Simulation Capabilities
+- `Vphasor_<attack_mode>.npy`: complex voltage phasors (after MMSE estimation)
+- `AttackLabel_<attack_mode>.npy`: labels indicating attack presence
+- `metadata_run_config.npy`: run configuration metadata
 
-- Run 3-phase power flows using OpenDSS
-- Extract normalized admittance matrix (Ybus)
-- Optimize PMU placements via greedy submodular search
-- Simulate PV inverters under **VV/VW control curves**
-- Inject **physical attacks** by manipulating inverter curves
-- Inject **FDI attacks** using stealthy null-space perturbations
-- Add **voltage measurement noise** for realism
-- Run **MMSE-based state estimation**
-- Generate labeled voltage phasors for GCN training/testing
-
-
-## Attack Details
-
-### Physical Attack: **Phase Imbalance via Control Curve Manipulation**
-
-- Targets **phase 2** of selected PV inverters.
-- Alters **Volt-Var (VV)** and **Volt-Watt (VW)** control curves to intentionally **misregulate power injections**.
-- Simulates **compromised DER firmware or malicious DERMS commands**.
-- Results in **voltage imbalance**, distorted flow estimations, and degraded situational awareness.
-
-### Generate Voltage Phasor Data
+## Example Usage
 
 ```python
-FlagGen = 1  # Enable data generation loop
+from data_loader import data_loader_FDIPhy
+
+data = data_loader_FDIPhy(
+    'Vphasor_FDI_Physical_WithVoltageNoise.npy',
+    'AttackLabel_FDI_Physical_WithVoltageNoise.npy'
+)
+X = data.data_recover   # shape: (time, nodes, samples)
+Y = data.label_truth    # shape: (time, labels)
 ```
 
-Then run the notebook or script:
 
-```bash
-python main_simulation.py
-```
-
-This creates:
-
-- `Vall_ReIm_New.npy` — complex voltage phasors (with attack)
-- `attack_label_New.npy` — binary labels (physical attacks)
-
-### Add FDI Attacks + Noise
-
-```python
-FlagFDI = 1
-voltage_scale_factor = 0.01
-
-data_obtain = data_loader_FDIPhy(file_path1, file_path2, Y_NodeOrder=Y_NodeOrder)
-data_obtain.state_est_withFDI(Y_norm_sparse, sensor_location_indices, voltage_scale_factor)
-```
-
-- PMU Noise (voltage_scale_factor):
-Realistic multiplicative Gaussian noise is applied to voltage measurements.
-
-- FDI Attack (attack_vec_da):
-A stealthy, additive false data injection vector is crafted using the null space of the sensor-only Ybus submatrix and added after noise to corrupt selected PMU measurements without raising simple detection alarms.
-
-### Save Outputs
-
-```bash
-Vphasor_FDI_Physical_WithVoltageNoise.npy
-AttackLabel_FDI_Physical_WithVoltageNoise.npy
-metadata_run_config.npy
-```
-
----
-
-## Dataset Description
-
-- `Vphasor_*.npy`: shape `(timepoints, nodes, samples)`
-- `AttackLabel_*.npy`: shape `(timepoints, #PV + #muPMU)`
-- `metadata_run_config.npy`: simulation configuration dictionary
-
----
-
-## Next Step: Graph-Based Learning
-
-Use the `.npy` files as input to train GNNs for attack detection.
-
----
 # FDIPhyDet_Final.ipynb
 
 ## Overview
